@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
-from services.mock_data import STATES_DATA
+from api.services.mock_data import STATES_DATA
 
 router = APIRouter()
 

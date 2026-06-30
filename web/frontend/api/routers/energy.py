@@ -9,8 +9,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from services.mock_data import get_all_states, get_state_raw, get_available_years, STATES_DATA
-from services.energy_service import build_state_response
+from api.services.mock_data import get_all_states, get_state_raw, get_available_years, STATES_DATA
+from api.services.energy_service import build_state_response
 
 router = APIRouter(prefix="/api", tags=["energy"])
 

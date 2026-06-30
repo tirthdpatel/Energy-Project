@@ -4,12 +4,12 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers.energy import router as energy_router
-from routers.power_plants import router as power_plants_router
-from routers.analytics import router as analytics_router
-from routers.insights import router as insights_router
-from routers.market import router as market_router
-from routers.live_generation import router as live_generation_router
+from api.routers.energy import router as energy_router
+from api.routers.power_plants import router as power_plants_router
+from api.routers.analytics import router as analytics_router
+from api.routers.insights import router as insights_router
+from api.routers.market import router as market_router
+from api.routers.live_generation import router as live_generation_router
 
 # Allow the frontend origin to be configured via environment variable,
 # falling back to localhost for local development.

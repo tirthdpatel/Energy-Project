@@ -16,7 +16,9 @@ import type {
     LiveMarketResponse,
 } from "@/types";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// API requests are handled via Next.js rewrites in next.config.ts.
+// In dev, it proxies to localhost:8000. In prod, it routes to Vercel Serverless Functions.
+const API = "";
 
 /** Shared fetch wrapper with error handling. */
 async function apiFetch<T>(path: string): Promise<T> {

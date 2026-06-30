@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from services.insight_service import generate_state_insights
+from api.services.insight_service import generate_state_insights
 
 router = APIRouter(prefix="/api/insights", tags=["insights"])
 

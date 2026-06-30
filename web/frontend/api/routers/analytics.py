@@ -8,7 +8,7 @@ from typing import Optional
 from async_lru import alru_cache
 from fastapi import APIRouter, HTTPException, Query
 
-from services.analytics_service import (
+from api.services.analytics_service import (
     calculate_energy_gdp_correlation,
     calculate_emissions_intensity,
     calculate_energy_intensity,
