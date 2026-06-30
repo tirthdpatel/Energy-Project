@@ -11,7 +11,6 @@ import {
     ResponsiveContainer,
     ZAxis,
 } from "recharts";
-import type { StateAnalyticsEntry } from "@/types";
 import { motion } from "framer-motion";
 import { useAnalyticsData } from "./hooks/useAnalyticsData";
 import EmissionsTab from "./EmissionsTab";
@@ -56,9 +55,6 @@ const REPORTS: { icon: string; label: string; view: View }[] = [
 ];
 
 // Removed static TABLE_DATA; data is now served live from backend metrics via fetchCorrelation.
-
-type SortKey = keyof StateAnalyticsEntry;
-type SortDir = "asc" | "desc";
 
 /* ── Component ─── */
 
@@ -453,7 +449,6 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                         </thead>
                                         <tbody className="text-xs text-slate-300 divide-y divide-[#262C3A]/50 tabular-nums">
                                             {filteredTable.map((row) => {
-                                                const isNeg = false;
                                                 const effScore = row.renewable_share_percent;
                                                 const statusColor =
                                                     effScore >= 40

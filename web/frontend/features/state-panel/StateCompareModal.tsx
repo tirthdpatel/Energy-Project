@@ -8,10 +8,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 interface Props {
     baseStateId: string;
     baseStateName: string;
+    /** The currently selected year on the dashboard — defaults to max year from meta */
+    selectedYear?: number;
     onClose: () => void;
 }
 
-export default function StateCompareModal({ baseStateId, baseStateName, onClose }: Props) {
+export default function StateCompareModal({ baseStateId, baseStateName, selectedYear, onClose }: Props) {
     const [meta, setMeta] = useState<AnalyticsMeta | null>(null);
     const [targetStateId, setTargetStateId] = useState<string>("");
     const [data, setData] = useState<ComparisonResult | null>(null);
@@ -20,23 +22,25 @@ export default function StateCompareModal({ baseStateId, baseStateName, onClose 
     useEffect(() => {
         fetchAnalyticsMeta().then(m => {
             setMeta(m);
-            // set an initial target different from base
-            const target = m.states.find(s => s !== baseStateId) || m.states[0];
+            // Set an initial target state different from the base
+            const target = m.states.find(s => s !== baseStateId) ?? m.states[0];
             setTargetStateId(target);
         }).catch(console.error);
     }, [baseStateId]);
 
     useEffect(() => {
         if (!targetStateId) return;
-        setLoading(true);
-        fetchComparison([baseStateId, targetStateId], 2026).then(d => {
+        // Resolve the year: use the prop if provided, otherwise fall back to the latest year
+        const year = selectedYear ?? meta?.years?.max_year ?? 2026;
+        setTimeout(() => setLoading(true), 0);
+        fetchComparison([baseStateId, targetStateId], year).then(d => {
             setData(d);
             setLoading(false);
         }).catch(e => {
             console.error(e);
             setLoading(false);
         });
-    }, [baseStateId, targetStateId]);
+    }, [baseStateId, targetStateId, selectedYear, meta]);
 
     const baseData = data?.state_comparison?.find(s => s.state_id === baseStateId);
     const targetData = data?.state_comparison?.find(s => s.state_id === targetStateId);
@@ -44,23 +48,23 @@ export default function StateCompareModal({ baseStateId, baseStateName, onClose 
     const chartData = data ? [
         {
             metric: "Capacity (GW)",
-            [baseStateId]: baseData?.total_capacity_mw ? baseData.total_capacity_mw / 1000 : 0,
-            [targetStateId]: targetData?.total_capacity_mw ? targetData.total_capacity_mw / 1000 : 0,
+            [baseStateId]: baseData?.total_capacity_mw ? +(baseData.total_capacity_mw / 1000).toFixed(2) : 0,
+            [targetStateId]: targetData?.total_capacity_mw ? +(targetData.total_capacity_mw / 1000).toFixed(2) : 0,
         },
         {
             metric: "RE Share (%)",
-            [baseStateId]: baseData?.renewable_share_percent || 0,
-            [targetStateId]: targetData?.renewable_share_percent || 0,
+            [baseStateId]: baseData?.renewable_share_percent ?? 0,
+            [targetStateId]: targetData?.renewable_share_percent ?? 0,
         },
         {
             metric: "Emissions (Mt)",
-            [baseStateId]: baseData?.total_emissions_mt || 0,
-            [targetStateId]: targetData?.total_emissions_mt || 0,
+            [baseStateId]: baseData?.total_emissions_mt ?? 0,
+            [targetStateId]: targetData?.total_emissions_mt ?? 0,
         },
         {
             metric: "GDP (B INR)",
-            [baseStateId]: baseData?.gdp_billion_inr || 0,
-            [targetStateId]: targetData?.gdp_billion_inr || 0,
+            [baseStateId]: baseData?.gdp_billion_inr ?? 0,
+            [targetStateId]: targetData?.gdp_billion_inr ?? 0,
         }
     ] : [];
 
@@ -71,8 +75,11 @@ export default function StateCompareModal({ baseStateId, baseStateName, onClose 
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                         <span className="material-symbols-outlined text-[#20d3ee]">compare_arrows</span>
                         State Comparison
+                        {data?.year && (
+                            <span className="text-slate-500 font-normal normal-case text-xs ml-1">({data.year})</span>
+                        )}
                     </h2>
-                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-white transition-colors">
+                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-white transition-colors" aria-label="Close comparison">
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>

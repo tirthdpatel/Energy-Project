@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { fetchInsights, fetchAnalyticsMeta } from "@/lib/api";
-import type { InsightsResult, AnalyticsMeta } from "@/types";
+import { fetchInsights } from "@/lib/api";
+import type { InsightsResult } from "@/types";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Legend,
+    ResponsiveContainer,
 } from "recharts";
 
 /* ── static sector sidebar items ─── */
@@ -39,19 +39,15 @@ function buildTrendData() {
 
 export default function SimpleView() {
     const [data, setData] = useState<InsightsResult | null>(null);
-    const [meta, setMeta] = useState<AnalyticsMeta | null>(null);
     const [activeSector, setActiveSector] = useState(0);
-    const trendData = useMemo(buildTrendData, []);
+    const trendData = useMemo(() => buildTrendData(), []);
 
     useEffect(() => {
         fetchInsights().then(setData).catch(console.error);
-        fetchAnalyticsMeta().then(setMeta).catch(console.error);
     }, []);
 
     /* derive headline numbers from insight cards */
     const totalCapacity = data?.insights?.[0];
-    const solarCard = data?.insights?.[1];
-    const emissionsCard = data?.insights?.[2];
 
     return (
         <div className="flex h-full overflow-hidden">

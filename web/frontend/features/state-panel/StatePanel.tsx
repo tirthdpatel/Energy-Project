@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { StateDetail } from "@/types";
-import EnergyMixChart from "./EnergyMixChart";
+import type { StateDetail, PowerPlantProperties } from "@/types";
 import TrendChart from "./TrendChart";
 import StateCompareModal from "./StateCompareModal";
 import html2canvas from "html2canvas";
@@ -10,12 +9,13 @@ import jsPDF from "jspdf";
 
 interface Props {
     state: StateDetail | null;
-    plant?: any | null;
+    plant?: PowerPlantProperties | null;
     loading: boolean;
     onClose: () => void;
+    selectedYear?: number;
 }
 
-export default function StatePanel({ state, plant, loading, onClose }: Props) {
+export default function StatePanel({ state, plant, loading, onClose, selectedYear }: Props) {
     const [isCompareOpen, setIsCompareOpen] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +28,7 @@ export default function StatePanel({ state, plant, loading, onClose }: Props) {
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
             pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`India_Energy_Atlas_${state?.name.replace(" ", "_")}.pdf`);
+            pdf.save(`India_Energy_Atlas_${state?.name.replaceAll(" ", "_")}.pdf`);
         } catch (error) {
             console.error("PDF Export failed:", error);
         }
@@ -42,7 +42,7 @@ export default function StatePanel({ state, plant, loading, onClose }: Props) {
         ? Math.round(
             ((state.mix.find((m) => m.source === "Solar")?.value ?? 0) +
                 (state.mix.find((m) => m.source === "Wind")?.value ?? 0)) /
-            state.mix.reduce((a, m) => a + m.value, 1) *
+            Math.max(state.mix.reduce((a, m) => a + m.value, 0), 1) *
             100
         )
         : 0;
@@ -79,7 +79,7 @@ export default function StatePanel({ state, plant, loading, onClose }: Props) {
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Primary Fuel</span>
                             <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#262C3A] border border-slate-600 shadow-sm text-slate-200">
-                                {plant.type.charAt(0).toUpperCase() + plant.type.slice(1)}
+                                {plant.type ? plant.type.charAt(0).toUpperCase() + plant.type.slice(1) : "Unknown"}
                             </span>
                         </div>
                         <div className="h-px bg-slate-800/50 w-full" />
@@ -258,6 +258,7 @@ export default function StatePanel({ state, plant, loading, onClose }: Props) {
                 <StateCompareModal
                     baseStateId={state.id}
                     baseStateName={state.name}
+                    selectedYear={selectedYear}
                     onClose={() => setIsCompareOpen(false)}
                 />
             )}

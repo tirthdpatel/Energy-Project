@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
-from async_lru import alru_cache
 
+from async_lru import alru_cache
 from fastapi import APIRouter, HTTPException, Query
 
 from services.analytics_service import (
@@ -22,22 +23,44 @@ from services.analytics_service import (
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
+# ── Helpers ────────────────────────────────────────────────
+
+def _get_max_year() -> int:
+    return get_available_years_analytics()["max_year"]
+
+
+def _validate_year(year: int) -> None:
+    meta = get_available_years_analytics()
+    if year < meta["min_year"] or year > meta["max_year"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Year must be between {meta['min_year']} and {meta['max_year']}",
+        )
+
+
+# ── Cached data fetchers (wrapped in asyncio.to_thread to avoid blocking the
+#    event loop — the underlying service calls do synchronous file I/O). ──────
+
 @alru_cache(maxsize=1)
-async def get_cached_meta():
-    return {
+async def _cached_meta():
+    return await asyncio.to_thread(lambda: {
         "states": get_available_states(),
         "years": get_available_years_analytics(),
-    }
+    })
+
+
+@alru_cache(maxsize=32)
+async def _cached_correlation(year: int):
+    return await asyncio.to_thread(calculate_energy_gdp_correlation, year)
+
+
+# ── Endpoints ──────────────────────────────────────────────
 
 @router.get("/meta")
 async def analytics_meta():
     """Return available states and year range for analytics."""
-    return await get_cached_meta()
+    return await _cached_meta()
 
-
-@alru_cache(maxsize=32)
-async def get_cached_correlation(year: int):
-    return calculate_energy_gdp_correlation(year)
 
 @router.get("/correlation")
 async def correlation(
@@ -45,48 +68,35 @@ async def correlation(
 ):
     """Compute GDP-energy-emissions correlations for a given year."""
     if year is None:
-        year = get_available_years_analytics()["max_year"]
-
-    years_meta = get_available_years_analytics()
-    if year < years_meta["min_year"] or year > years_meta["max_year"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Year must be between {years_meta['min_year']} and {years_meta['max_year']}"
-        )
-
-    return await get_cached_correlation(year)
+        year = _get_max_year()
+    _validate_year(year)
+    return await _cached_correlation(year)
 
 
 @router.get("/emissions-intensity")
-def emissions_intensity(
+async def emissions_intensity(
     year: Optional[int] = Query(default=None, description="Year for emissions intensity"),
 ):
     """Emissions per GDP for each state."""
     if year is None:
-        year = get_available_years_analytics()["max_year"]
-
-    return {
-        "year": year,
-        "data": calculate_emissions_intensity(year),
-    }
+        year = _get_max_year()
+    data = await asyncio.to_thread(calculate_emissions_intensity, year)
+    return {"year": year, "data": data}
 
 
 @router.get("/energy-intensity")
-def energy_intensity(
+async def energy_intensity(
     year: Optional[int] = Query(default=None, description="Year for energy intensity"),
 ):
     """MW per billion INR GDP for each state."""
     if year is None:
-        year = get_available_years_analytics()["max_year"]
-
-    return {
-        "year": year,
-        "data": calculate_energy_intensity(year),
-    }
+        year = _get_max_year()
+    data = await asyncio.to_thread(calculate_energy_intensity, year)
+    return {"year": year, "data": data}
 
 
 @router.get("/compare")
-def compare(
+async def compare(
     states: str = Query(description="Comma-separated state IDs"),
     year: Optional[int] = Query(default=None, description="Year for comparison"),
 ):
@@ -94,34 +104,28 @@ def compare(
     state_ids = [s.strip() for s in states.split(",") if s.strip()]
     if len(state_ids) < 2:
         raise HTTPException(status_code=400, detail="Provide at least 2 state IDs")
-
     if year is None:
-        year = get_available_years_analytics()["max_year"]
-
-    years_meta = get_available_years_analytics()
-    if year < years_meta["min_year"] or year > years_meta["max_year"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Year must be between {years_meta['min_year']} and {years_meta['max_year']}"
-        )
-
-    return compare_states(state_ids, year)
+        year = _get_max_year()
+    _validate_year(year)
+    return await asyncio.to_thread(compare_states, state_ids, year)
 
 
 @router.get("/emissions/state")
-def state_emissions(
+async def state_emissions(
     year: Optional[int] = Query(default=None, description="Year for state emissions"),
 ):
     """Per-state CO₂ output, intensity, and year-on-year trend."""
     if year is None:
-        year = get_available_years_analytics()["max_year"]
-    return {"year": year, "data": get_state_emissions(year)}
+        year = _get_max_year()
+    data = await asyncio.to_thread(get_state_emissions, year)
+    return {"year": year, "data": data}
 
 
 @router.get("/emissions/trend")
-def national_emissions_trend():
+async def national_emissions_trend():
     """National CO₂ total aggregated by year."""
-    return {"data": get_national_emissions_trend()}
+    data = await asyncio.to_thread(get_national_emissions_trend)
+    return {"data": data}
 
 
 @router.get("/emissions/factors")

@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from services.mock_data import get_all_states, get_state_raw, get_available_years
+from services.mock_data import get_all_states, get_state_raw, get_available_years, STATES_DATA
 from services.energy_service import build_state_response
 
 router = APIRouter(prefix="/api", tags=["energy"])
@@ -26,7 +26,6 @@ def _load_geojson() -> dict:
             data = json.load(f)
             
         # Inject capacity by year dynamically into feature properties for timeline scrubber
-        from services.mock_data import STATES_DATA
         for feature in data.get("features", []):
             st_id = feature["properties"].get("state_id")
             if st_id and st_id in STATES_DATA:

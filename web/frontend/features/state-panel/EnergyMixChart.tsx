@@ -36,10 +36,9 @@ export default function EnergyMixChart({ data }: Props) {
                         outerRadius={80}
                         innerRadius={40}
                         paddingAngle={2}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        label={((props: any) =>
+                        label={((props: { source: string; value: number }) =>
                             `${props.source} ${props.value}%`
-                        ) as any}
+                        ) as (props: object) => string}
                         labelLine={false}
                     >
                         {data.map((entry) => (

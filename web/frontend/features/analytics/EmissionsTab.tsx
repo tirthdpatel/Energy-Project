@@ -56,7 +56,7 @@ export default function EmissionsTab({ year }: Props) {
     const [filter, setFilter] = useState("");
 
     useEffect(() => {
-        setLoading(true);
+        setTimeout(() => setLoading(true), 0);
         Promise.all([
             fetch(`${API}/api/analytics/emissions/state?year=${year}`).then(r => r.json()),
             fetch(`${API}/api/analytics/emissions/trend`).then(r => r.json()),

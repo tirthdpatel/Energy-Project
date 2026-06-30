@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import StatePanel from "@/features/state-panel/StatePanel";
 import { fetchStateDetail } from "@/lib/api";
-import type { StateDetail } from "@/types";
+import type { StateDetail, PowerPlantProperties } from "@/types";
 
 /* ── Lazy-loaded views ─── */
 const IndiaMap = dynamic(() => import("@/features/map/IndiaMap"), { ssr: false });
@@ -20,8 +20,6 @@ const Spinner = (
 );
 
 type View = "map" | "simple" | "pro";
-
-const YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
 /* ── Left Icon Sidebar items ─── */
 const SIDEBAR_ICONS: { icon: string; title: string; view: View }[] = [
@@ -37,7 +35,7 @@ export default function HomePage() {
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedState, setSelectedState] = useState<StateDetail | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedPlant, setSelectedPlant] = useState<any | null>(null);
+  const [selectedPlant, setSelectedPlant] = useState<PowerPlantProperties | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState(0);
 
@@ -53,7 +51,7 @@ export default function HomePage() {
   }, [view, activeSidebar]);
 
   const handleStateSelect = useCallback(
-    async (stateId: string, _name: string) => {
+    async (stateId: string) => {
       setSelectedId(stateId);
       setSelectedPlant(null);
       setLoading(true);
@@ -70,7 +68,7 @@ export default function HomePage() {
     []
   );
 
-  const handlePlantSelect = useCallback((plant: any) => {
+  const handlePlantSelect = useCallback((plant: PowerPlantProperties) => {
     setSelectedPlant(plant);
     setView("map");
   }, []);
@@ -95,10 +93,6 @@ export default function HomePage() {
               INDIA ENERGY <span className="text-[#20d3ee]">ATLAS</span>
             </h1>
           </div>
-
-          {/* Year Selector — only on Map view 
-              Note: TimeScrubber now manages year interactively natively inside IndiaMap 
-           */}
 
           {/* Right: View Tabs + Settings + Avatar */}
           <div className="flex items-center gap-3">
@@ -158,8 +152,8 @@ export default function HomePage() {
             </div>
           </aside>
 
-          {/* Main Content Area */}
-          <div className="flex-1 relative overflow-hidden relative">
+          {/* Main Content Area — removed duplicate 'relative' */}
+          <div className="flex-1 relative overflow-hidden">
             <Suspense fallback={Spinner}>
               <AnimatePresence mode="wait">
                 {/* Map View */}
@@ -186,6 +180,7 @@ export default function HomePage() {
                       plant={selectedPlant}
                       loading={loading}
                       onClose={handleClose}
+                      selectedYear={selectedYear}
                     />
                   </motion.div>
                 )}
@@ -214,7 +209,7 @@ export default function HomePage() {
                     transition={{ duration: 0.3 }}
                     className="absolute inset-0 h-full overflow-y-auto"
                   >
-                    <AnalyticsDashboard onNavigate={setView} onStateClick={(id) => handleStateSelect(id, "")} />
+                    <AnalyticsDashboard onNavigate={setView} onStateClick={(id) => handleStateSelect(id)} />
                   </motion.div>
                 )}
               </AnimatePresence>

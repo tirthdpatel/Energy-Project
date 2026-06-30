@@ -26,7 +26,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 interface Props {
-    onStateSelect: (stateId: string, stateName: string) => void;
+    onStateSelect: (stateId: string, stateName?: string) => void;
     onPlantSelect?: (plant: any) => void;
     selectedStateId: string | null;
     selectedYear: number;
@@ -114,11 +114,6 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
             if (!map || !map.isStyleLoaded()) return;
 
             try {
-                // If user has actively opened the filter panel and deselected
-                // all types, show nothing instead of everything.
-                const hasActiveTypeFilter = filtersVisible && filters.types.length === 0;
-                const hasActiveStateFilter = filtersVisible && filters.states.length === 0;
-
                 // Only skip if user is explicitly filtering but nothing is selected.
                 // On initial load (filtersVisible=false), we still show all plants.
                 const showEmpty =
@@ -401,7 +396,8 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
                 console.error("Failed to load power plants:", err);
             }
         },
-        []
+        // filtersVisible is read inside the callback; onPlantSelect is called inside it
+        [filtersVisible, onPlantSelect]
     );
 
     // Reload power plants when filters change
@@ -601,21 +597,6 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    if (mapError) {
-        return (
-            <div className="flex items-center justify-center w-full h-full bg-slate-950">
-                <div className="text-center max-w-sm">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10">
-                        <svg className="h-7 w-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <p className="text-lg font-semibold text-white mb-2">Map Unavailable</p>
-                    <p className="text-sm text-slate-400">{mapError}</p>
-                </div>
-            </div>
-        );
-    }
 
     // Effect to update map styling when view mode changes
     useEffect(() => {
@@ -725,6 +706,22 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
         }, 1000);
         return () => clearInterval(iv);
     }, [isPlaying, selectedYear, onYearChange]);
+
+    if (mapError) {
+        return (
+            <div className="flex items-center justify-center w-full h-full bg-slate-950">
+                <div className="text-center max-w-sm">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10">
+                        <svg className="h-7 w-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <p className="text-lg font-semibold text-white mb-2">Map Unavailable</p>
+                    <p className="text-sm text-slate-400">{mapError}</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="relative w-full h-full" style={{ minHeight: "100vh" }}>

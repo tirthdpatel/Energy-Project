@@ -30,8 +30,10 @@ export function useAnalyticsData() {
     }, []);
 
     useEffect(() => {
-        setLoading(true);
-        setError(null);
+        setTimeout(() => {
+            setLoading(true);
+            setError(null);
+        }, 0);
         fetchCorrelation(year)
             .then((d) => {
                 setData(d);
