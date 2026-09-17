@@ -1,0 +1,8 @@
+# The FastAPI backend is deployed separately on Render — keep it out of the
+# Vercel build so `api/*.py` is not picked up as Python Serverless Functions
+# and the bundled datasets do not bloat the deployment.
+api/
+requirements.txt
+
+# Local-only artefacts
+.husky/

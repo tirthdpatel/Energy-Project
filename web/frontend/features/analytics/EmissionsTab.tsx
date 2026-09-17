@@ -7,8 +7,7 @@ import {
     ResponsiveContainer, Cell, Legend,
 } from "recharts";
 import { motion } from "framer-motion";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { fetchStateEmissions, fetchEmissionsTrend } from "@/lib/api";
 
 interface StateEmission {
     state_id: string;
@@ -58,8 +57,8 @@ export default function EmissionsTab({ year }: Props) {
     useEffect(() => {
         setTimeout(() => setLoading(true), 0);
         Promise.all([
-            fetch(`${API}/api/analytics/emissions/state?year=${year}`).then(r => r.json()),
-            fetch(`${API}/api/analytics/emissions/trend`).then(r => r.json()),
+            fetchStateEmissions<StateEmission>(year),
+            fetchEmissionsTrend<TrendPoint>(),
         ]).then(([stateRes, trendRes]) => {
             setStateData(stateRes.data ?? []);
             setTrend(trendRes.data ?? []);

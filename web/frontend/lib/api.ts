@@ -16,8 +16,8 @@ import type {
     LiveMarketResponse,
 } from "@/types";
 
-// API requests are handled via Next.js rewrites in next.config.ts.
-// In dev, it proxies to localhost:8000. In prod, it routes to Vercel Serverless Functions.
+// API requests are same-origin and handled by the Next.js rewrite in next.config.ts,
+// which proxies /api/* to the FastAPI backend (localhost in dev, API_BASE_URL in prod).
 const API = "";
 
 /** Shared fetch wrapper with error handling. */
@@ -128,3 +128,17 @@ export function fetchLiveMarketPricing(): Promise<LiveMarketResponse> {
     return apiFetch<LiveMarketResponse>("/api/market/pricing/live");
 }
 
+
+/* ── Emissions API ─── */
+
+/** GET /api/analytics/emissions/state?year= → per-state CO₂ output */
+export function fetchStateEmissions<T>(year: number): Promise<{ year: number; data: T[] }> {
+    return apiFetch<{ year: number; data: T[] }>(
+        `/api/analytics/emissions/state?year=${year}`
+    );
+}
+
+/** GET /api/analytics/emissions/trend → national CO₂ totals by year */
+export function fetchEmissionsTrend<T>(): Promise<{ data: T[] }> {
+    return apiFetch<{ data: T[] }>("/api/analytics/emissions/trend");
+}

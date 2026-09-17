@@ -1,0 +1,21 @@
+# Render blueprint for the India Energy Atlas FastAPI backend.
+# The frontend (web/frontend) is deployed separately on Vercel.
+services:
+  - type: web
+    name: energy-project-api
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r web/frontend/api/requirements.txt
+    # index.py uses absolute `api.*` imports, so uvicorn must run from web/frontend.
+    startCommand: cd web/frontend && uvicorn api.index:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      # Comma-separated list of browser origins allowed to call the API directly.
+      # The Vercel frontend proxies through Next.js rewrites (server-side, no CORS),
+      # but this is set so the production domain also works for direct calls.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.9

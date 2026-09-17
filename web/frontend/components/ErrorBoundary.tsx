@@ -55,10 +55,12 @@ export default class ErrorBoundary extends Component<Props, State> {
                                 {this.state.message ||
                                     "The application encountered an unexpected error."}
                             </p>
-                            <p className="mb-6 text-xs text-slate-500">
-                                Make sure the backend is running on{" "}
-                                <code className="text-cyan-400">localhost:8000</code>
-                            </p>
+                            {process.env.NODE_ENV === "development" && (
+                                <p className="mb-6 text-xs text-slate-500">
+                                    Make sure the backend is running on{" "}
+                                    <code className="text-cyan-400">localhost:8000</code>
+                                </p>
+                            )}
                             <button
                                 onClick={() => this.setState({ hasError: false, message: "" })}
                                 className="rounded-lg bg-cyan-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-500"

@@ -591,7 +591,17 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
 
         mapRef.current = map;
 
+        // MapLibre measures the container once, at construction time. When the map
+        // mounts before layout has settled (or while its view is hidden behind the
+        // Map/Simple/Pro toggle) it falls back to a 400x300 canvas and never
+        // re-measures, leaving the map blank. Observing the container and calling
+        // resize() keeps the canvas in sync with its real dimensions.
+        const container = mapContainer.current;
+        const resizeObserver = new ResizeObserver(() => map.resize());
+        resizeObserver.observe(container);
+
         return () => {
+            resizeObserver.disconnect();
             map.remove();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
