@@ -17,6 +17,11 @@ on:
     # 02:30 UTC / 08:00 IST
     - cron: '30 2 * * *'
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Redeploy Render even if the data did not change'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -103,8 +108,12 @@ jobs:
       # covers it. Create the hook in the Render dashboard under
       # Settings -> Deploy Hook and store it as the RENDER_DEPLOY_HOOK_URL
       # repository secret. The step is skipped when the secret is absent.
+      #
+      # Run this workflow manually with force_deploy to redeploy Render without
+      # waiting for a data change — useful after a backend commit, since pushes
+      # do not reach Render while the GitHub app is unauthorised.
       - name: Trigger Render deploy
-        if: steps.commit.outputs.pushed == 'true'
+        if: steps.commit.outputs.pushed == 'true' || github.event.inputs.force_deploy == 'true'
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
