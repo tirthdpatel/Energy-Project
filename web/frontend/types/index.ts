@@ -206,3 +206,58 @@ export interface InsightsResult {
     total_states: number;
     trend_data: InsightTrendPoint[];
 }
+
+/* ── Sector dashboards (Simple view) ─── */
+
+export interface SectorSummary {
+    id: string;
+    label: string;
+    icon: string;
+}
+
+export interface SectorMetric {
+    label: string;
+    value: string;
+    unit: string;
+    change_pct: number;
+    trend: "up" | "down" | "flat";
+    sub: string;
+}
+
+export interface SectorChartSeries {
+    key: string;
+    label: string;
+    color: string;
+}
+
+export interface SectorChart {
+    title: string;
+    subtitle: string;
+    unit: string;
+    x_key: string;
+    series: SectorChartSeries[];
+    data: Record<string, string | number>[];
+}
+
+export interface SectorTableColumn {
+    key: string;
+    label: string;
+    numeric?: boolean;
+}
+
+export interface SectorTable {
+    title: string;
+    subtitle?: string;
+    columns: SectorTableColumn[];
+    rows: Record<string, string | number>[];
+}
+
+export interface SectorDetail extends SectorSummary {
+    headline: string;
+    subtitle: string;
+    as_of: string;
+    metrics: SectorMetric[];
+    chart: SectorChart;
+    table: SectorTable;
+    source: string;
+}

@@ -14,6 +14,8 @@ import type {
     InsightsResult,
     LiveGenerationResponse,
     LiveMarketResponse,
+    SectorSummary,
+    SectorDetail,
 } from "@/types";
 
 // API requests are same-origin and handled by the Next.js rewrite in next.config.ts,
@@ -141,4 +143,16 @@ export function fetchStateEmissions<T>(year: number): Promise<{ year: number; da
 /** GET /api/analytics/emissions/trend → national CO₂ totals by year */
 export function fetchEmissionsTrend<T>(): Promise<{ data: T[] }> {
     return apiFetch<{ data: T[] }>("/api/analytics/emissions/trend");
+}
+
+/* ── Sectors API ─── */
+
+/** GET /api/sectors → sidebar sector list */
+export function fetchSectors(): Promise<{ sectors: SectorSummary[] }> {
+    return apiFetch<{ sectors: SectorSummary[] }>("/api/sectors");
+}
+
+/** GET /api/sectors/{id} → metrics, chart and table for one sector */
+export function fetchSector(sectorId: string): Promise<SectorDetail> {
+    return apiFetch<SectorDetail>(`/api/sectors/${sectorId}`);
 }

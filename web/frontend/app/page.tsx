@@ -155,7 +155,12 @@ export default function HomePage() {
           {/* Main Content Area — removed duplicate 'relative' */}
           <div className="flex-1 relative overflow-hidden">
             <Suspense fallback={Spinner}>
-              <AnimatePresence mode="wait">
+              {/* Not mode="wait": the outgoing view owns heavy resources (the
+                  MapLibre canvas), and when its teardown interrupts the exit
+                  animation the completion callback never fires, so "wait" would
+                  block the incoming view from ever mounting. Each view is
+                  absolutely positioned, so cross-fading them is safe. */}
+              <AnimatePresence>
                 {/* Map View */}
                 {view === "map" && (
                   <motion.div
