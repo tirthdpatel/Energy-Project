@@ -63,8 +63,14 @@ partial outage leaves the previous snapshot in place. The web API always reads
 the most recent dated folder, so a successful run is picked up with no code
 change.
 
-> `cea.nic.in` is often unreachable from outside India. If the run times out,
-> that is the network rather than the endpoint map.
+Runs are automated by `.github/workflows/refresh-cea-data.yml` (daily, plus
+manual dispatch). The extractor only writes when the data actually differs from
+the snapshot on disk, so an unchanged day commits nothing, and `--keep` prunes
+older snapshots so the repo does not grow by ~10 MB per run.
+
+> `cea.nic.in` is unreliable — it often answers `Connection failed` under an
+> HTTP 200, or times out entirely. Those responses are rejected rather than
+> written, so a failed run simply leaves the previous snapshot in place.
 
 ## 🧪 Testing
 Run the provided smoke tests using `pytest`:

@@ -24,8 +24,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
+import shutil
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -212,15 +214,56 @@ def write_snapshot(results: dict[str, Any], out_root: Path,
     return target
 
 
+def _snapshots(out_root: Path) -> list[Path]:
+    """Existing dated snapshot folders, newest first."""
+    if not out_root.is_dir():
+        return []
+    return sorted((p for p in out_root.iterdir() if p.is_dir()), reverse=True)
+
+
+def fingerprint(snapshot: Path) -> str:
+    """Hash a snapshot's datasets, ignoring the run timestamp.
+
+    cea_api_data.json embeds `fetched_at`, so it changes on every run and is
+    excluded — otherwise a scheduled refresh would look like new data every
+    time and commit another ~10 MB for nothing.
+    """
+    digest = hashlib.sha256()
+    for name in sorted(ENDPOINTS):
+        path = snapshot / f"{name}.json"
+        digest.update(name.encode())
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def prune(out_root: Path, keep: int) -> list[Path]:
+    """Delete all but the newest `keep` snapshots. Returns what was removed."""
+    removed = []
+    for old in _snapshots(out_root)[max(keep, 1):]:
+        shutil.rmtree(old)
+        removed.append(old)
+    return removed
+
+
 def refresh(out_root: Path = DEFAULT_OUT,
-            snapshot_date: Optional[str] = None) -> Path:
+            snapshot_date: Optional[str] = None,
+            keep: int = 2) -> Optional[Path]:
     """Fetch and validate every endpoint, then write the snapshot.
 
     Nothing is written unless all endpoints validate, so a partial outage
     cannot leave the site serving a half-updated dataset.
+
+    Returns the new snapshot path, or None when the fetched data is identical
+    to the snapshot already on disk. That matters for scheduled runs: a CEA
+    snapshot is ~10 MB, the data only moves monthly, and without this check a
+    daily job would commit another copy every day.
     """
     if httpx is None:
         raise CeaRefreshError("httpx is not installed — pip install -r requirements.txt")
+
+    previous = _snapshots(out_root)
+    previous_print = fingerprint(previous[0]) if previous else None
 
     results: dict[str, Any] = {}
     headers = {
@@ -237,7 +280,18 @@ def refresh(out_root: Path = DEFAULT_OUT,
             results[name] = payload
 
     target = write_snapshot(results, out_root, snapshot_date)
+
+    if previous_print is not None and fingerprint(target) == previous_print:
+        # Nothing moved since the last run. Drop the copy we just wrote, unless
+        # it landed on top of the snapshot we were comparing against.
+        if target != previous[0]:
+            shutil.rmtree(target)
+        logger.info("no change since %s — snapshot not updated", previous[0].name)
+        return None
+
     logger.info("wrote snapshot to %s", target)
+    for removed in prune(out_root, keep):
+        logger.info("pruned old snapshot %s", removed.name)
     return target
 
 
@@ -276,6 +330,8 @@ def main() -> int:
                         help=f"snapshot root (default: {DEFAULT_OUT})")
     parser.add_argument("--date", dest="snapshot_date", default=None,
                         help="snapshot folder name (default: today)")
+    parser.add_argument("--keep", type=int, default=2,
+                        help="how many snapshots to retain (default: 2)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -283,7 +339,8 @@ def main() -> int:
     if args.check:
         return check(args.out)
     try:
-        refresh(args.out, args.snapshot_date)
+        written = refresh(args.out, args.snapshot_date, args.keep)
+        print("changed" if written else "unchanged")
     except CeaRefreshError as exc:
         logger.error("refresh failed: %s", exc)
         logger.error("the previous snapshot has been left untouched")
