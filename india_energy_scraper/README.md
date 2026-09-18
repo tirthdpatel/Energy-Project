@@ -46,6 +46,26 @@ The final reconciled outputs are generated in the `output/` directory:
 3. `cross_validation_report.md`
 4. `verification_dashboard.html`
 
+## 🔄 Refreshing the CEA datasets
+
+The Simple view's sector dashboards (`/api/sectors`) are served from the CEA
+snapshot in `web/frontend/api/data/scraped/cea/<date>/`. Refresh it with:
+
+```bash
+python -m scrapers.cea_extractor            # fetch a new dated snapshot
+python -m scrapers.cea_extractor --check    # validate the newest snapshot
+```
+
+The extractor pulls all twelve `cea.nic.in/api` feeds (installed capacity,
+renewables split, generation by mode, peak demand, transmission and more),
+validates each response, and only writes once every endpoint checks out — a
+partial outage leaves the previous snapshot in place. The web API always reads
+the most recent dated folder, so a successful run is picked up with no code
+change.
+
+> `cea.nic.in` is often unreachable from outside India. If the run times out,
+> that is the network rather than the endpoint map.
+
 ## 🧪 Testing
 Run the provided smoke tests using `pytest`:
 ```bash
