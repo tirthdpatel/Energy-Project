@@ -72,6 +72,12 @@ older snapshots so the repo does not grow by ~10 MB per run.
 > HTTP 200, or times out entirely. Those responses are rejected rather than
 > written, so a failed run simply leaves the previous snapshot in place.
 
+## 🚀 Deployment
+
+Pushes to `main` deploy the frontend to Vercel and the backend to Render
+automatically. The refresh workflow can also redeploy Render on demand via
+`gh workflow run "Refresh CEA datasets" -f force_deploy=true`.
+
 ## 🧪 Testing
 Run the provided smoke tests using `pytest`:
 ```bash
