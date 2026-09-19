@@ -261,3 +261,18 @@ export interface SectorDetail extends SectorSummary {
     table: SectorTable;
     source: string;
 }
+
+/* ── Dataset catalogue ─── */
+
+export interface DatasetEntry {
+    id: string;
+    name: string;
+    publisher: string;
+    kind: "scraped" | "simulated";
+    source_url?: string;
+    snapshot?: string | null;
+    records?: number;
+    coverage?: { from: string; to: string } | null;
+    available?: boolean;
+    note?: string;
+}

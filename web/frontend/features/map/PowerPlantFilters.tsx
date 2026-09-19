@@ -154,6 +154,9 @@ export default function PowerPlantFilterPanel({
                             <div className="flex items-center justify-between mb-2">
                                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                     Energy Type
+                                    {filters.types.length === 0 && (
+                                        <span className="ml-1.5 normal-case tracking-normal text-slate-500">· all shown</span>
+                                    )}
                                 </label>
                                 <div className="flex gap-1.5">
                                     <button
@@ -166,7 +169,7 @@ export default function PowerPlantFilterPanel({
                                         onClick={selectNoTypes}
                                         className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700/60 transition-colors"
                                     >
-                                        None
+                                        Clear
                                     </button>
                                 </div>
                             </div>
@@ -204,6 +207,9 @@ export default function PowerPlantFilterPanel({
                             <div className="flex items-center justify-between mb-2">
                                 <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                     State
+                                    {filters.states.length === 0 && (
+                                        <span className="ml-1.5 normal-case tracking-normal text-slate-500">· all shown</span>
+                                    )}
                                     {filters.states.length > 0 && (
                                         <span className="ml-2 text-cyan-400 normal-case">
                                             ({filters.states.length} selected)
@@ -221,7 +227,7 @@ export default function PowerPlantFilterPanel({
                                         onClick={selectNoStates}
                                         className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700/60 transition-colors"
                                     >
-                                        None
+                                        Clear
                                     </button>
                                 </div>
                             </div>

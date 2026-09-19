@@ -31,9 +31,20 @@ interface Props {
     selectedStateId: string | null;
     selectedYear: number;
     onYearChange: (year: number) => void;
+    /** Layers (power plant filter) panel visibility, when controlled by the shell. */
+    filtersVisible?: boolean;
+    onFiltersVisibleChange?: (visible: boolean) => void;
 }
 
-export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId, selectedYear, onYearChange }: Props) {
+export default function IndiaMap({
+    onStateSelect,
+    onPlantSelect,
+    selectedStateId,
+    selectedYear,
+    onYearChange,
+    filtersVisible: filtersVisibleProp,
+    onFiltersVisibleChange,
+}: Props) {
     const mapContainer = useRef<HTMLDivElement>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const hoveredId = useRef<string | number | null>(null);
@@ -49,7 +60,14 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
         minCapacity: 0,
     });
     const [plantCount, setPlantCount] = useState(0);
-    const [filtersVisible, setFiltersVisible] = useState(false);
+    // The shell's Layers button can drive this panel; fall back to local state
+    // when the map is used on its own.
+    const [localFiltersVisible, setLocalFiltersVisible] = useState(false);
+    const filtersVisible = filtersVisibleProp ?? localFiltersVisible;
+    const setFiltersVisible = (visible: boolean) => {
+        if (onFiltersVisibleChange) onFiltersVisibleChange(visible);
+        else setLocalFiltersVisible(visible);
+    };
 
     // View mode state
     const [viewMode, setViewMode] = useState<"capacity" | "live">("capacity");
@@ -114,25 +132,15 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
             if (!map || !map.isStyleLoaded()) return;
 
             try {
-                // Only skip if user is explicitly filtering but nothing is selected.
-                // On initial load (filtersVisible=false), we still show all plants.
-                const showEmpty =
-                    filtersVisible &&
-                    filters.types.length === 0 &&
-                    filters.states.length === 0 &&
-                    filters.minCapacity === 0;
-
-                let data: GeoJSONFeatureCollection;
-                if (showEmpty) {
-                    // User reset all filters → show nothing
-                    data = { type: "FeatureCollection", features: [] };
-                } else {
-                    data = await fetchPowerPlants({
-                        states: filters.states,
-                        types: filters.types,
-                        minCapacity: filters.minCapacity,
-                    });
-                }
+                // An empty selection means "no filter on that dimension". This
+                // used to depend on whether the panel was open — an open panel
+                // with nothing ticked showed zero plants — so merely opening the
+                // filters blanked the map.
+                const data: GeoJSONFeatureCollection = await fetchPowerPlants({
+                    states: filters.states,
+                    types: filters.types,
+                    minCapacity: filters.minCapacity,
+                });
 
                 setPlantCount(data.features.length);
 
@@ -396,8 +404,8 @@ export default function IndiaMap({ onStateSelect, onPlantSelect, selectedStateId
                 console.error("Failed to load power plants:", err);
             }
         },
-        // filtersVisible is read inside the callback; onPlantSelect is called inside it
-        [filtersVisible, onPlantSelect]
+        // onPlantSelect is called inside the callback
+        [onPlantSelect]
     );
 
     // Reload power plants when filters change

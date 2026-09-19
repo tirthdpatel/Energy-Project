@@ -11,6 +11,7 @@ from api.routers.insights import router as insights_router
 from api.routers.market import router as market_router
 from api.routers.live_generation import router as live_generation_router
 from api.routers.sectors import router as sectors_router
+from api.routers.datasets import router as datasets_router
 
 # Allow the frontend origin to be configured via environment variable,
 # falling back to localhost for local development.
@@ -39,6 +40,7 @@ app.include_router(insights_router)
 app.include_router(market_router, prefix="/api/market", tags=["market"])
 app.include_router(live_generation_router, prefix="/api/generation", tags=["live"])
 app.include_router(sectors_router)
+app.include_router(datasets_router)
 
 
 @app.get("/")

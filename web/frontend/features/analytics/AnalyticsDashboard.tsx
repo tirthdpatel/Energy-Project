@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     ScatterChart,
     Scatter,
@@ -14,6 +14,8 @@ import {
 import { motion } from "framer-motion";
 import { useAnalyticsData } from "./hooks/useAnalyticsData";
 import EmissionsTab from "./EmissionsTab";
+import type { Destination, Navigate, ProSection, ProTab } from "@/lib/navigation";
+import { useSettings } from "@/lib/settings";
 
 /* ── Helpers ─── */
 
@@ -40,30 +42,56 @@ function downloadCSV(rows: Record<string, string | number>[], filename: string) 
     URL.revokeObjectURL(url);
 }
 
-/* ── Sidebar items ─── */
-type View = "map" | "simple" | "pro";
+/* ── Sidebar items ───
+ * Each entry lands somewhere distinct. Previously "Dashboard" and "Geospatial"
+ * both opened the map, and Datasets, Efficiency Trends and Policy Audit all
+ * opened the Simple view. Policy Audit had no content behind it anywhere, so
+ * that slot now opens the Carbon Emissions tab, which does.
+ */
+interface SidebarLink {
+    icon: string;
+    label: string;
+    to: Destination;
+}
 
-const NAV_ITEMS: { icon: string; label: string; view: View }[] = [
-    { icon: "dashboard", label: "Dashboard", view: "map" },
-    { icon: "analytics", label: "Pro Analytics", view: "pro" },
-    { icon: "map", label: "Geospatial", view: "map" },
-    { icon: "database", label: "Datasets", view: "simple" },
+const NAV_ITEMS: SidebarLink[] = [
+    { icon: "analytics", label: "Pro Analytics", to: { view: "pro", proTab: "overview" } },
+    { icon: "map", label: "Geospatial", to: { view: "map" } },
+    { icon: "description", label: "Sector Reports", to: { view: "simple" } },
+    { icon: "database", label: "Datasets", to: { view: "datasets" } },
 ];
-const REPORTS: { icon: string; label: string; view: View }[] = [
-    { icon: "monitoring", label: "Efficiency Trends", view: "simple" },
-    { icon: "description", label: "Policy Audit", view: "simple" },
+const REPORTS: SidebarLink[] = [
+    {
+        icon: "monitoring",
+        label: "Efficiency Benchmarks",
+        to: { view: "pro", proTab: "overview", section: "benchmarks" },
+    },
+    { icon: "eco", label: "Carbon Emissions", to: { view: "pro", proTab: "emissions" } },
 ];
+
+const PAGE_SIZE = 10;
 
 // Removed static TABLE_DATA; data is now served live from backend metrics via fetchCorrelation.
 
 /* ── Component ─── */
 
 interface Props {
-    onNavigate?: (view: "map" | "simple" | "pro") => void;
+    onNavigate?: Navigate;
     onStateClick?: (stateId: string) => void;
+    /** Active tab, owned by the shell so links from elsewhere can pick it. */
+    tab?: ProTab;
+    onTabChange?: (tab: ProTab) => void;
+    /** Section to scroll to; the nonce re-triggers the scroll for repeat clicks. */
+    section?: { id: ProSection; nonce: number } | null;
 }
 
-export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props = {}) {
+export default function AnalyticsDashboard({
+    onNavigate,
+    onStateClick,
+    tab,
+    onTabChange,
+    section,
+}: Props = {}) {
     const {
         meta,
         year,
@@ -80,13 +108,61 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
         renewableShare
     } = useAnalyticsData();
 
+    const { reduceMotion } = useSettings();
     const [filterText, setFilterText] = useState("");
-    const [activeNav, setActiveNav] = useState(1);
-    const [activeTab, setActiveTab] = useState<"overview" | "emissions">("overview");
+    const [page, setPage] = useState(0);
+    const [expandedChart, setExpandedChart] = useState<"gdp" | "emissions" | null>(null);
+    const [localTab, setLocalTab] = useState<ProTab>("overview");
+    const activeTab = tab ?? localTab;
+    const setActiveTab = (next: ProTab) => {
+        if (onTabChange) onTabChange(next);
+        else setLocalTab(next);
+    };
+
+    const benchmarksRef = useRef<HTMLDivElement>(null);
+    const filterInputRef = useRef<HTMLInputElement>(null);
+    // Set by the search button so the scroll below also focuses the filter.
+    const searchRequested = useRef(false);
 
     const filteredTable = filteredData.filter((r) =>
         r.state.toLowerCase().includes(filterText.toLowerCase())
     );
+    const pageCount = Math.max(1, Math.ceil(filteredTable.length / PAGE_SIZE));
+    const currentPage = Math.min(page, pageCount - 1);
+    const pageRows = filteredTable.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+    // Scroll to a requested section once the overview has rendered it.
+    useEffect(() => {
+        if (!section || activeTab !== "overview") return;
+        const el = section.id === "benchmarks" ? benchmarksRef.current : null;
+        if (!el) return;
+        const instant =
+            reduceMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        el.scrollIntoView({ behavior: instant ? "auto" : "smooth", block: "start" });
+        if (searchRequested.current) {
+            searchRequested.current = false;
+            filterInputRef.current?.focus({ preventScroll: true });
+        }
+    }, [section, activeTab, data, reduceMotion]);
+
+    // Close an expanded chart with Escape.
+    useEffect(() => {
+        if (!expandedChart) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setExpandedChart(null);
+        };
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+    }, [expandedChart]);
+
+    const go = (to: Destination) => {
+        if (onNavigate) onNavigate(to);
+        else if (to.view === "pro" && to.proTab) setLocalTab(to.proTab);
+    };
+
+    /** A sidebar link is active when it describes where the Pro view is now. */
+    const isActive = (to: Destination) =>
+        to.view === "pro" && to.proTab === activeTab && !to.section;
 
     if (loading && !data) {
         return (
@@ -111,14 +187,12 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                 </div>
 
                 <nav className="flex-1 px-4 py-2 space-y-1">
-                    {NAV_ITEMS.map((item, idx) => (
+                    {NAV_ITEMS.map((item) => (
                         <button
                             key={item.label}
-                            onClick={() => {
-                                setActiveNav(idx);
-                                if (onNavigate) onNavigate(item.view);
-                            }}
-                            className={`flex items-center gap-3 w-full px-3 py-2 rounded text-sm font-medium transition-colors ${activeNav === idx
+                            onClick={() => go(item.to)}
+                            aria-current={isActive(item.to) ? "page" : undefined}
+                            className={`flex items-center gap-3 w-full px-3 py-2 rounded text-sm font-medium transition-colors ${isActive(item.to)
                                 ? "bg-[#20d3ee]/10 text-[#20d3ee] border border-[#20d3ee]/20"
                                 : "text-slate-400 hover:text-white hover:bg-white/5"
                                 }`}
@@ -135,10 +209,12 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                     {REPORTS.map((r) => (
                         <button
                             key={r.label}
-                            onClick={() => {
-                                if (onNavigate) onNavigate(r.view);
-                            }}
-                            className="flex items-center gap-3 w-full px-3 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded transition-colors text-sm font-medium"
+                            onClick={() => go(r.to)}
+                            aria-current={isActive(r.to) ? "page" : undefined}
+                            className={`flex items-center gap-3 w-full px-3 py-2 rounded transition-colors text-sm font-medium ${isActive(r.to)
+                                ? "bg-[#20d3ee]/10 text-[#20d3ee] border border-[#20d3ee]/20"
+                                : "text-slate-400 hover:text-white hover:bg-white/5"
+                                }`}
                         >
                             <span className="material-symbols-outlined text-[20px]">{r.icon}</span>
                             {r.label}
@@ -146,19 +222,6 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                     ))}
                 </nav>
 
-                {/* User card */}
-                <div className="p-4 border-t border-[#262C3A]">
-                    <div className="flex items-center gap-3 p-2 rounded-lg bg-[#0F1115]/50 border border-[#262C3A]">
-                        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center border border-[#262C3A] text-xs font-bold text-[#20d3ee]">
-                            OP
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <p className="text-xs font-bold truncate">Om Patel</p>
-                            <p className="text-[10px] text-slate-500 truncate">Energy Analyst</p>
-                        </div>
-                        <span className="material-symbols-outlined text-slate-500 text-sm">settings</span>
-                    </div>
-                </div>
             </aside>
 
             {/* ── Main content ── */}
@@ -187,24 +250,18 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                         ))}
                                 </select>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <label className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">
-                                    Sector
-                                </label>
-                                <select className="bg-[#0F1115] border-[#262C3A] text-xs rounded py-1 pl-2 pr-8 text-slate-200 focus:border-[#20d3ee] focus:ring-0">
-                                    <option>All Sectors</option>
-                                    <option>Industrial</option>
-                                    <option>Residential</option>
-                                    <option>Agriculture</option>
-                                </select>
-                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button className="p-1.5 text-slate-400 hover:text-[#20d3ee] transition-colors">
-                            <span className="material-symbols-outlined text-[20px]">notifications</span>
-                        </button>
-                        <button className="p-1.5 text-slate-400 hover:text-[#20d3ee] transition-colors">
+                        <button
+                            onClick={() => {
+                                searchRequested.current = true;
+                                go({ view: "pro", proTab: "overview", section: "benchmarks" });
+                            }}
+                            title="Search states"
+                            aria-label="Search states"
+                            className="p-1.5 text-slate-400 hover:text-[#20d3ee] transition-colors"
+                        >
                             <span className="material-symbols-outlined text-[20px]">search</span>
                         </button>
                     </div>
@@ -270,10 +327,19 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                 />
                             </div>
 
+                            {expandedChart && (
+                                <div
+                                    className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm"
+                                    onClick={() => setExpandedChart(null)}
+                                />
+                            )}
+
                             {/* ── Charts Row ── */}
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                                 {/* Energy vs GDP Scatter */}
-                                <div className="bg-[#161A22] border border-[#262C3A] rounded-lg p-5">
+                                <div className={expandedChart === "gdp"
+                                    ? "fixed inset-6 z-[90] flex flex-col bg-[#161A22] border border-[#262C3A] rounded-lg p-6 shadow-2xl"
+                                    : "bg-[#161A22] border border-[#262C3A] rounded-lg p-5"}>
                                     <div className="flex items-center justify-between mb-6">
                                         <div>
                                             <h3 className="text-sm font-bold text-slate-200">Energy Consumption vs. GDP</h3>
@@ -281,11 +347,23 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                                 Correlation by State (Linear regression r²={((correlationIndex ** 2) || 0.88).toFixed(2)})
                                             </p>
                                         </div>
-                                        <button className="p-1 rounded bg-[#0F1115] text-slate-400 border border-[#262C3A] hover:text-[#20d3ee] transition-colors">
-                                            <span className="material-symbols-outlined text-xs">fullscreen</span>
+                                        <button
+                                            onClick={() => setExpandedChart(expandedChart === "gdp" ? null : "gdp")}
+                                            title={expandedChart === "gdp" ? "Close" : "Expand chart"}
+                                            aria-label={expandedChart === "gdp" ? "Close expanded chart" : "Expand energy versus GDP chart"}
+                                            className="p-1 rounded bg-[#0F1115] text-slate-400 border border-[#262C3A] hover:text-[#20d3ee] transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-xs">{expandedChart === "gdp" ? "close_fullscreen" : "fullscreen"}</span>
                                         </button>
                                     </div>
-                                    <ResponsiveContainer width="100%" height={260}>
+                                    <div className={expandedChart === "gdp" ? "flex-1 min-h-0" : ""}>
+                                    {/* Keyed so expanding remounts the chart and it measures its new
+                                        size at once, rather than waiting on a ResizeObserver tick. */}
+                                    <ResponsiveContainer
+                                        key={expandedChart === "gdp" ? "expanded" : "inline"}
+                                        width="100%"
+                                        height={expandedChart === "gdp" ? "100%" : 260}
+                                    >
                                         <ScatterChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
                                             <CartesianGrid stroke="#262C3A" strokeDasharray="3 3" />
                                             <XAxis
@@ -319,6 +397,7 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                             <Scatter data={scatterDataGDP} fill="#20d3ee" fillOpacity={0.6} stroke="#20d3ee" strokeWidth={1} />
                                         </ScatterChart>
                                     </ResponsiveContainer>
+                                    </div>
                                     <div className="mt-4 flex justify-center gap-6">
                                         <ChartLegend dot="bg-[#20d3ee]" label="Top Tier States" />
                                         <ChartLegend dot="bg-slate-600" label="Emerging Economies" />
@@ -326,17 +405,31 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                 </div>
 
                                 {/* Emissions vs RE Scatter */}
-                                <div className="bg-[#161A22] border border-[#262C3A] rounded-lg p-5">
+                                <div className={expandedChart === "emissions"
+                                    ? "fixed inset-6 z-[90] flex flex-col bg-[#161A22] border border-[#262C3A] rounded-lg p-6 shadow-2xl"
+                                    : "bg-[#161A22] border border-[#262C3A] rounded-lg p-5"}>
                                     <div className="flex items-center justify-between mb-6">
                                         <div>
                                             <h3 className="text-sm font-bold text-slate-200">Emissions vs. Renewable Adoption</h3>
                                             <p className="text-[11px] text-slate-500">Inversion trend analysis by regional cluster</p>
                                         </div>
-                                        <button className="p-1 rounded bg-[#0F1115] text-slate-400 border border-[#262C3A] hover:text-[#20d3ee] transition-colors">
-                                            <span className="material-symbols-outlined text-xs">tune</span>
+                                        <button
+                                            onClick={() => setExpandedChart(expandedChart === "emissions" ? null : "emissions")}
+                                            title={expandedChart === "emissions" ? "Close" : "Expand chart"}
+                                            aria-label={expandedChart === "emissions" ? "Close expanded chart" : "Expand emissions versus renewables chart"}
+                                            className="p-1 rounded bg-[#0F1115] text-slate-400 border border-[#262C3A] hover:text-[#20d3ee] transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-xs">{expandedChart === "emissions" ? "close_fullscreen" : "fullscreen"}</span>
                                         </button>
                                     </div>
-                                    <ResponsiveContainer width="100%" height={260}>
+                                    <div className={expandedChart === "emissions" ? "flex-1 min-h-0" : ""}>
+                                    {/* Keyed so expanding remounts the chart and it measures its new
+                                        size at once, rather than waiting on a ResizeObserver tick. */}
+                                    <ResponsiveContainer
+                                        key={expandedChart === "emissions" ? "expanded" : "inline"}
+                                        width="100%"
+                                        height={expandedChart === "emissions" ? "100%" : 260}
+                                    >
                                         <ScatterChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
                                             <CartesianGrid stroke="#262C3A" strokeDasharray="3 3" />
                                             <XAxis
@@ -376,6 +469,7 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                             />
                                         </ScatterChart>
                                     </ResponsiveContainer>
+                                    </div>
                                     <div className="mt-4 flex justify-center gap-6">
                                         <ChartLegend dot="bg-rose-500" label="High Carbon Risk" />
                                         <ChartLegend dot="bg-[#20d3ee]" label="Decarbonized Zones" />
@@ -384,12 +478,15 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                             </div>
 
                             {/* ── Data Table ── */}
-                            <div className="bg-[#161A22] border border-[#262C3A] rounded-lg overflow-hidden">
+                            <div
+                                ref={benchmarksRef}
+                                className="bg-[#161A22] border border-[#262C3A] rounded-lg overflow-hidden scroll-mt-6"
+                            >
                                 <div className="px-6 py-4 border-b border-[#262C3A] flex items-center justify-between bg-[#161A22]/50">
                                     <div className="flex items-center gap-4">
                                         <h3 className="text-sm font-bold">State-wise Efficiency Benchmarks</h3>
                                         <div className="px-2 py-0.5 rounded bg-[#20d3ee]/10 border border-[#20d3ee]/20 text-[10px] font-bold text-[#20d3ee] uppercase">
-                                            {filteredData.length || 32} Entities Loaded
+                                            {filteredData.length} Entities Loaded
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -401,8 +498,12 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                                 className="bg-[#0F1115] border-[#262C3A] text-[11px] rounded py-1 pl-7 pr-3 text-slate-200 focus:border-[#20d3ee] focus:ring-0 w-48"
                                                 placeholder="Filter states..."
                                                 type="text"
+                                                ref={filterInputRef}
                                                 value={filterText}
-                                                onChange={(e) => setFilterText(e.target.value)}
+                                                onChange={(e) => {
+                                                    setFilterText(e.target.value);
+                                                    setPage(0);
+                                                }}
                                             />
                                         </div>
                                         <button
@@ -448,7 +549,7 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                             </tr>
                                         </thead>
                                         <tbody className="text-xs text-slate-300 divide-y divide-[#262C3A]/50 tabular-nums">
-                                            {filteredTable.map((row) => {
+                                            {pageRows.map((row, rowIdx) => {
                                                 const effScore = row.renewable_share_percent;
                                                 const statusColor =
                                                     effScore >= 40
@@ -463,11 +564,11 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                                         key={row.state}
                                                         initial={{ opacity: 0, y: 10 }}
                                                         animate={{ opacity: 1, y: 0 }}
-                                                        transition={{ duration: 0.3, delay: filteredTable.indexOf(row) * 0.05 }}
+                                                        transition={{ duration: 0.3, delay: rowIdx * 0.05 }}
                                                         className="hover:bg-white/5 transition-colors cursor-pointer"
                                                         onClick={() => {
                                                             if (onStateClick) onStateClick(row.state_id);
-                                                            if (onNavigate) onNavigate("map");
+                                                            go({ view: "map" });
                                                         }}
                                                     >
                                                         <td className="px-6 py-2.5 font-medium text-slate-200">{row.state}</td>
@@ -510,13 +611,29 @@ export default function AnalyticsDashboard({ onNavigate, onStateClick }: Props =
                                 </div>
 
                                 <div className="px-6 py-3 border-t border-[#262C3A] flex items-center justify-between text-[11px] text-slate-500">
-                                    <p>Showing 1-{filteredTable.length} of 32 states</p>
+                                    <p>
+                                        {filteredTable.length === 0
+                                            ? "No states match"
+                                            : `Showing ${currentPage * PAGE_SIZE + 1}–${currentPage * PAGE_SIZE + pageRows.length} of ${filteredTable.length} states`}
+                                    </p>
                                     <div className="flex items-center gap-2">
-                                        <button className="p-1 hover:text-white transition-colors disabled:opacity-30" disabled>
+                                        <button
+                                            onClick={() => setPage(currentPage - 1)}
+                                            disabled={currentPage === 0}
+                                            aria-label="Previous page"
+                                            className="p-1 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-500"
+                                        >
                                             <span className="material-symbols-outlined text-[16px]">chevron_left</span>
                                         </button>
-                                        <span className="px-2 text-[#20d3ee] font-bold">1</span>
-                                        <button className="p-1 hover:text-white transition-colors">
+                                        <span className="px-2 text-[#20d3ee] font-bold">
+                                            {currentPage + 1} / {pageCount}
+                                        </span>
+                                        <button
+                                            onClick={() => setPage(currentPage + 1)}
+                                            disabled={currentPage >= pageCount - 1}
+                                            aria-label="Next page"
+                                            className="p-1 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-500"
+                                        >
                                             <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                                         </button>
                                     </div>

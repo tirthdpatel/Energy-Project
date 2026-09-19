@@ -16,6 +16,7 @@ import type {
     LiveMarketResponse,
     SectorSummary,
     SectorDetail,
+    DatasetEntry,
 } from "@/types";
 
 // API requests are same-origin and handled by the Next.js rewrite in next.config.ts,
@@ -155,4 +156,16 @@ export function fetchSectors(): Promise<{ sectors: SectorSummary[] }> {
 /** GET /api/sectors/{id} → metrics, chart and table for one sector */
 export function fetchSector(sectorId: string): Promise<SectorDetail> {
     return apiFetch<SectorDetail>(`/api/sectors/${sectorId}`);
+}
+
+/* ── Datasets API ─── */
+
+/** GET /api/datasets → catalogue of every dataset the atlas serves */
+export function fetchDatasets(): Promise<{ datasets: DatasetEntry[] }> {
+    return apiFetch<{ datasets: DatasetEntry[] }>("/api/datasets");
+}
+
+/** Same-origin URL of one dataset's raw JSON. */
+export function datasetUrl(datasetId: string): string {
+    return `${API}/api/datasets/${datasetId}`;
 }
